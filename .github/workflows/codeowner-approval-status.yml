@@ -1,4 +1,4 @@
-name: Owner Approval
+name: Code-owner Approval Status
 on:
   pull_request_review:
     types: [submitted]
