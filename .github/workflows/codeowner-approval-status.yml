@@ -52,6 +52,11 @@ jobs:
               r.state === 'APPROVED' && allOwners.has(r.user.login)
             );
 
+            const owners_array = Array.from(allOwners);
+            const display = owners_array.length <= 3
+              ? owners_array.map(o => `@${o}`).join(', ')
+              : `@${owners_array.slice(0, 3).join(', @')} +${owners_array.length - 3} more`;
+
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner, repo: context.repo.repo,
               sha: context.payload.pull_request.head.sha,
@@ -59,6 +64,6 @@ jobs:
               context: 'codeowner-approval',
               description: approved
                 ? `Approved by ${reviews.find(r => r.state === 'APPROVED' && allOwners.has(r.user.login)).user.login}`
-                : `Need 1 approval from any codeowner`,
+                : `❌ Merge blocked — need 1 approval from any codeowner: ${display}`,
             });
-
+            
