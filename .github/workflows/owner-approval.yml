@@ -28,7 +28,11 @@ jobs:
               .split('\n').filter(l => l.trim() && !l.startsWith('#'))
               .map(l => { const [pattern, ...owners] = l.split(/\s+/); return { pattern, owners }; });
 
-            const { minimatch } = require('minimatch'); // npm install in a prior step
+            // const { minimatch } = require('minimatch'); // npm install in a prior step
+            const minimatch = (filepath, pattern) => {
+              const p = pattern.replace(/\*\*/g, '').replace(/\*/g, '');
+              return filepath.startsWith(p);
+            };
 
             // Union all owners across all touched files
             const allOwners = new Set();
