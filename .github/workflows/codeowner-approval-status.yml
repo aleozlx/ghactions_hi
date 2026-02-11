@@ -41,11 +41,17 @@ jobs:
             // Union all owners across all touched files
             const allOwners = new Set();
             for (const f of files) {
+              let lastMatch = null;
               for (const rule of codeowners) {
-                if (minimatch(f.filename, rule.pattern)) {
-                  rule.owners.forEach(o => allOwners.add(o.replace('@', '')));
-                }
+                if (minimatch(f.filename, rule.pattern)) lastMatch = rule;
               }
+              if (lastMatch) lastMatch.owners.forEach(o => allOwners.add(o.replace('@', '')));
+            }
+            
+            // Fallback if no patterns matched at all
+            const FALLBACK_OWNERS = ['aleozlx']; // change to your leads
+            if (allOwners.size === 0) {
+              FALLBACK_OWNERS.forEach(o => allOwners.add(o));
             }
 
             const approved = reviews.some(r =>
