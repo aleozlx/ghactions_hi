@@ -64,6 +64,6 @@ jobs:
               context: 'codeowner-approval',
               description: approved
                 ? `Approved by ${reviews.find(r => r.state === 'APPROVED' && allOwners.has(r.user.login)).user.login}`
-                : `❌ Merge blocked — need 1 approval from any codeowner: ${display}`,
+                : `❌ need approval: ${display}`,
             });
             
