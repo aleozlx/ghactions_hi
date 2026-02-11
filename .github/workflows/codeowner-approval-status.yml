@@ -41,16 +41,27 @@ jobs:
             // Union all owners across all touched files
             const allOwners = new Set();
             for (const f of files) {
+              let lastMatch = null;
               for (const rule of codeowners) {
-                if (minimatch(f.filename, rule.pattern)) {
-                  rule.owners.forEach(o => allOwners.add(o.replace('@', '')));
-                }
+                if (minimatch(f.filename, rule.pattern)) lastMatch = rule;
               }
+              if (lastMatch) lastMatch.owners.forEach(o => allOwners.add(o.replace('@', '')));
+            }
+            
+            // Fallback if no patterns matched at all
+            const FALLBACK_OWNERS = ['aleozlx']; // change to your leads
+            if (allOwners.size === 0) {
+              FALLBACK_OWNERS.forEach(o => allOwners.add(o));
             }
 
             const approved = reviews.some(r =>
               r.state === 'APPROVED' && allOwners.has(r.user.login)
             );
+
+            const owners_array = Array.from(allOwners);
+            const display = owners_array.length <= 3
+              ? owners_array.map(o => `@${o}`).join(', ')
+              : `@${owners_array.slice(0, 3).join(', @')} +${owners_array.length - 3} more`;
 
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner, repo: context.repo.repo,
@@ -59,6 +70,6 @@ jobs:
               context: 'codeowner-approval',
               description: approved
                 ? `Approved by ${reviews.find(r => r.state === 'APPROVED' && allOwners.has(r.user.login)).user.login}`
-                : `Need 1 approval from any codeowner`,
+                : `❌ need approval: ${display}`,
             });
-
+            
