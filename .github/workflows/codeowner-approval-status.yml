@@ -32,7 +32,7 @@ jobs:
               .split('\n').filter(l => l.trim() && !l.startsWith('#'))
               .map(l => { const [pattern, ...owners] = l.split(/\s+/); return { pattern, owners }; });
 
-            // const { minimatch } = require('minimatch'); // npm install in a prior step
+            // HACK const { minimatch } = require('minimatch'); // npm install in a prior step
             const minimatch = (filepath, pattern) => {
               const p = pattern.replace(/\*\*/g, '').replace(/\*/g, '');
               return filepath.startsWith(p);
@@ -48,9 +48,10 @@ jobs:
               if (lastMatch) lastMatch.owners.forEach(o => allOwners.add(o.replace('@', '')));
             }
             
-            // Fallback if no patterns matched at all
+            // HACK Fallback if no patterns matched at all
+            const prAuthor = context.payload.pull_request.user.login;
             const FALLBACK_OWNERS = ['aleozlx']; // change to your leads
-            if (allOwners.size === 0) {
+            if (allOwners.size === 0 || (allOwners.size === 1 && allOwners.has(prAuthor))) {
               FALLBACK_OWNERS.forEach(o => allOwners.add(o));
             }
 
