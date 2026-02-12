@@ -1,3 +1,9 @@
+adapt the changes to my hacked version for me to run it in the fake repo first
+
+
+hacked version
+
+```
 name: Code-owner Approval Status
 on:
   pull_request_review:
@@ -73,4 +79,4 @@ jobs:
                 ? `Approved by ${reviews.find(r => r.state === 'APPROVED' && allOwners.has(r.user.login)).user.login}`
                 : `❌ need approval: ${display}`,
             });
-            
+```
