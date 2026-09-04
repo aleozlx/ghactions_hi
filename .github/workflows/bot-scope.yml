@@ -1,0 +1,71 @@
+# Sandbox mirror of flashinfer's "Handle @flashinfer-bot run" step.
+# Permission checks stripped (personal repo); scope logic is verbatim.
+name: Bot Scope Handler
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  statuses: write
+jobs:
+  handle:
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '@flashinfer-bot')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Handle run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          HEAD_SHA=$(gh pr view ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} --json headRefOid -q .headRefOid) || HEAD_SHA=""
+          echo "HEAD_SHA=[$HEAD_SHA]"
+
+          ARGS=$(printf '%s' "$COMMENT_BODY" | tr -d '\r' \
+            | sed -nE 's/.*@[Ff]lashinfer-bot[[:space:]]+run[[:space:]]+(.*)$/\1/p' \
+            | head -1)
+          echo "ARGS=[$ARGS]"
+
+          CHUNKS=()
+          if [ -n "$ARGS" ]; then
+            if SCOPE=$(python3 scripts/pr_checks/experimental_test_scope.py \
+                  --targets "$ARGS" --root tests/ --no-check-exists --test-path \
+                  2>/tmp/scope_err) \
+               && CHUNKED=$(python3 scripts/pr_checks/experimental_test_scope.py \
+                  --targets "$SCOPE" --root tests/ --no-check-exists --chunk 140 \
+                  2>>/tmp/scope_err); then
+              mapfile -t CHUNKS <<< "$CHUNKED"
+            else
+              gh pr comment ${{ github.event.issue.number }} \
+                --repo ${{ github.repository }} \
+                --body "Ignoring the trailing text on that command; running the full suite instead -- it is not a valid test scope: $(cat /tmp/scope_err)" \
+                || echo "warning: could not post the note; continuing to label"
+            fi
+          fi
+
+          PREV_MAX=$(gh api "/repos/${{ github.repository }}/commits/${HEAD_SHA}/status" \
+            --jq '[.statuses[].context
+              | select(test("^ci/test-scope-[0-9]+$"))
+              | sub("^ci/test-scope-"; "") | tonumber] | max // 0') || PREV_MAX=0
+          PREV_MAX=${PREV_MAX:-0}
+          echo "PREV_MAX=$PREV_MAX  CHUNKS=${#CHUNKS[@]}"
+
+          publish_chunk() {
+            [ -n "${HEAD_SHA}" ] || return 0
+            gh api -X POST "/repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
+              -f state=success -f context="ci/test-scope-$1" -f description="$2" \
+              -f target_url="${{ github.event.comment.html_url }}" > /dev/null
+          }
+          for i in "${!CHUNKS[@]}"; do publish_chunk "$((i + 1))" "${CHUNKS[$i]}"; done
+          for ((i = ${#CHUNKS[@]} + 1; i <= PREV_MAX; i++)); do publish_chunk "$i" ""; done
+
+          gh pr edit ${{ github.event.issue.number }} --repo ${{ github.repository }} \
+            --remove-label run-ci 2>/dev/null || true
+          gh pr edit ${{ github.event.issue.number }} --repo ${{ github.repository }} \
+            --add-label run-ci
+          echo "LABEL APPLIED"
