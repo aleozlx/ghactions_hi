@@ -50,7 +50,8 @@ jobs:
         run: |
           {
             if [ -z "${REQUESTED_TEST_PATH}" ]; then
-              for s in 1 2; do jq -nc --arg s "$s" '{name: "JIT Unittest \($s)"}'; done
+              jq -nc '{name: "Full Suite (mirrors H100: pytest tests/)", cmd: "pytest tests/ -q"}'
+              jq -nc '{name: "Shard5 (mirrors part5: one named file)", cmd: "pytest tests/experimental/test_a.py -q"}'
             else
               jq -nc --arg t "${REQUESTED_TEST_PATH}" '{name: "Targeted Unittest (A10G)", test_path: $t}'
               jq -nc --arg t "${REQUESTED_TEST_PATH}" '{name: "Targeted Unittest (T4)", test_path: $t}'
@@ -68,13 +69,19 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TEST_PATH_ARG: ${{ matrix.test_path }}
+      MATRIX_CMD: ${{ matrix.cmd }}
     steps:
       - uses: actions/checkout@v5
         with: { persist-credentials: false }
       - name: Run Test
         run: |
+          pip install -q pytest
           echo "TEST_PATH_ARG as the job received it = [${TEST_PATH_ARG:-}]"
-          if [ -n "${TEST_PATH_ARG:-}" ]; then
+          if [ -n "${MATRIX_CMD:-}" ]; then
+            echo "DEFAULT LANE RUNNING: ${MATRIX_CMD}"
+            eval "${MATRIX_CMD}" | tail -3
+            echo "COLLECTED HERE: $(eval "${MATRIX_CMD} --collect-only" 2>/dev/null | grep -c '::' || true)"
+          elif [ -n "${TEST_PATH_ARG:-}" ]; then
             set -f
             read -r -a TEST_TARGETS <<< "${TEST_PATH_ARG}"
             set +f
