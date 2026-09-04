@@ -1,0 +1,107 @@
+name: PR Test Mock
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+permissions:
+  contents: read
+  statuses: read
+  pull-requests: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      authorized: ${{ steps.c.outputs.authorized }}
+    steps:
+      - id: c
+        run: |
+          if ${{ contains(github.event.pull_request.labels.*.name, 'run-ci') }}; then
+            echo "authorized=true" >> $GITHUB_OUTPUT
+          else
+            echo "authorized=false" >> $GITHUB_OUTPUT
+          fi
+  setup:
+    needs: gate
+    if: needs.gate.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      test_matrix: ${{ steps.matrix.outputs.matrix }}
+      test_scope: ${{ steps.scope.outputs.test_path }}
+    steps:
+      - uses: actions/checkout@v5
+        with: { persist-credentials: false }
+      - name: Read requested test scope
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          SCOPE=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/status" --jq '
+              .statuses
+              | map(select(.context | test("^ci/test-scope-[0-9]+$")))
+              | map({n: (.context | sub("^ci/test-scope-"; "") | tonumber),
+                     d: (.description // "")})
+              | sort_by(.n) | map(.d) | map(select(. != "")) | join(" ")')
+          echo "SCOPE READ = [${SCOPE}]"
+          echo "test_path=${SCOPE}" >> "$GITHUB_OUTPUT"
+      - name: Build matrix
+        id: matrix
+        env:
+          REQUESTED_TEST_PATH: ${{ steps.scope.outputs.test_path }}
+        run: |
+          {
+            if [ -z "${REQUESTED_TEST_PATH}" ]; then
+              for s in 1 2; do jq -nc --arg s "$s" '{name: "JIT Unittest \($s)"}'; done
+            else
+              jq -nc --arg t "${REQUESTED_TEST_PATH}" '{name: "Targeted Unittest (A10G)", test_path: $t}'
+              jq -nc --arg t "${REQUESTED_TEST_PATH}" '{name: "Targeted Unittest (T4)", test_path: $t}'
+            fi
+          } | jq -sc '{include: .}' > m.json
+          echo "matrix=$(cat m.json)" >> $GITHUB_OUTPUT
+          echo "MATRIX: $(cat m.json)"
+  test:
+    needs: [gate, setup]
+    if: needs.gate.outputs.authorized == 'true'
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.setup.outputs.test_matrix) }}
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    env:
+      TEST_PATH_ARG: ${{ matrix.test_path }}
+    steps:
+      - uses: actions/checkout@v5
+        with: { persist-credentials: false }
+      - name: Run Test
+        run: |
+          echo "TEST_PATH_ARG as the job received it = [${TEST_PATH_ARG:-}]"
+          if [ -n "${TEST_PATH_ARG:-}" ]; then
+            set -f
+            read -r -a TEST_TARGETS <<< "${TEST_PATH_ARG}"
+            set +f
+            echo "array expanded to ${#TEST_TARGETS[@]} element(s)"
+            ./scripts/task_run_unit_tests.sh --test-path "${TEST_TARGETS[@]}"
+          else
+            ./scripts/task_run_unit_tests.sh
+          fi
+  summary:
+    needs: [gate, setup, test]
+    if: '!cancelled()'
+    name: Test Results Summary
+    runs-on: ubuntu-latest
+    env:
+      TEST_SCOPE: ${{ needs.setup.outputs.test_scope }}
+    steps:
+      - name: Check Results
+        if: needs.gate.outputs.authorized == 'true'
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          RESULT="${{ needs.test.result }}"
+          echo "result: $RESULT" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${TEST_SCOPE:-}" ]; then
+            echo "> **Scoped run - NOT the full suite.**" >> $GITHUB_STEP_SUMMARY
+            echo "> Tested only: \`${TEST_SCOPE}\`" >> $GITHUB_STEP_SUMMARY
+            echo "BANNER EMITTED for scope [${TEST_SCOPE}]"
+          else
+            echo "NO BANNER (unscoped run)"
+          fi
+          [ "$RESULT" = success ] || [ "$RESULT" = skipped ]
