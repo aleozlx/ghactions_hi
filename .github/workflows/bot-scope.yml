@@ -43,8 +43,13 @@ jobs:
             else
               gh pr comment ${{ github.event.issue.number }} \
                 --repo ${{ github.repository }} \
-                --body "Ignoring the trailing text on that command; running the full suite instead -- it is not a valid test scope: $(cat /tmp/scope_err)" \
-                || echo "warning: could not post the note; continuing to label"
+                --body "Rejected: not a valid test scope -- $(cat /tmp/scope_err). Re-issue with a corrected path list, or with no arguments for the full suite." \
+                || echo "warning: could not post the rejection note"
+              gh api -X POST \
+                "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+                -f content='confused' > /dev/null || echo "warning: could not react"
+              echo "Rejected malformed scope; run-ci not applied."
+              exit 0
             fi
           fi
 
