@@ -1,0 +1,48 @@
+# Sandbox mirror of pr-test.yml's scope read + matrix build.
+name: Scope Read
+on:
+  workflow_dispatch:
+    inputs:
+      sha: { description: head sha, required: true }
+      skip_gpu: { description: "true/false", required: false, default: "false" }
+permissions:
+  contents: read
+  statuses: read
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read requested test scope
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.inputs.sha }}
+        run: |
+          SCOPE=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/status" --jq '
+              .statuses
+              | map(select(.context | test("^ci/test-scope-[0-9]+$")))
+              | map({n: (.context | sub("^ci/test-scope-"; "") | tonumber),
+                     d: (.description // "")})
+              | sort_by(.n) | map(.d) | map(select(. != "")) | join(" ")')
+          echo "REASSEMBLED SCOPE=[${SCOPE}]"
+          echo "test_path=${SCOPE}" >> "$GITHUB_OUTPUT"
+      - name: Build matrix
+        env:
+          SKIP_GPU: ${{ github.event.inputs.skip_gpu }}
+          REQUESTED_TEST_PATH: ${{ steps.scope.outputs.test_path }}
+        run: |
+          {
+            if [ "$SKIP_GPU" != "true" ] && [ -z "${REQUESTED_TEST_PATH}" ]; then
+              for shard in 1 2 3; do
+                jq -nc --arg shard "$shard" '{name: "JIT Unittest \($shard) (A10G)"}'
+              done
+              jq -nc '{name: "JIT Unittest (T4)"}'
+              jq -nc '{name: "JIT Unittest (H100)"}'
+            elif [ "$SKIP_GPU" != "true" ]; then
+              jq -nc --arg t "${REQUESTED_TEST_PATH}" '{name: "Targeted Unittest (A10G)", test_path: $t}'
+              jq -nc --arg t "${REQUESTED_TEST_PATH}" '{name: "Targeted Unittest (T4)", test_path: $t}'
+              jq -nc --arg t "${REQUESTED_TEST_PATH}" '{name: "Targeted Unittest (H100)", test_path: $t}'
+            fi
+          } | jq -sc '{include: .}' > matrix.json
+          echo "MATRIX: $(cat matrix.json)"
+          echo "JOBS: $(jq -r '[.include[].name] | join(", ")' matrix.json)"
