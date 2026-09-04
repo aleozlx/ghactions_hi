@@ -1,0 +1,3 @@
+@flashinfer-bot run
+
+Kicking off CI on the rebased head.

@@ -1,0 +1,5 @@
+Example:
+
+```bash
+@flashinfer-bot run tests/x.py
+```

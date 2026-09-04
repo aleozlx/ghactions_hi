@@ -1,0 +1,3 @@
+### How `@flashinfer-bot run` works
+
+It applies the run-ci label.

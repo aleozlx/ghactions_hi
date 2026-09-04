@@ -1,0 +1,8 @@
+Documented commands:
+
+```
+@flashinfer-bot run
+@flashinfer-bot stop
+```
+
+That is the whole list.

@@ -1,0 +1,48 @@
+Reviewed end to end and reproduced the CI logic locally. The Python design holds up and is genuinely a no-op for stable behavior — but **the experimental CI lane this PR ships is non-functional**, in two independent ways. I'll push fixes for everything below.
+
+## Blocking: the scoped-test feature can never work
+
+**1. `COMMENT_BODY` is not in scope for the handler step** — `.github/workflows/ci-bot-commands.yml` (the `Handle @flashinfer-bot run` step)
+
+`COMMENT_BODY` is defined only in the `Parse command` step's `env:`. Step-level `env` doesn't cross steps, so in the run handler it is empty, `ARGS` is always empty, and every `@flashinfer-bot run tests/foo.py` publishes "empty test scope (full suite)".
+
+**2. The targeted lanes are unreachable dead code** — `.github/workflows/pr-test.yml`
+
+The outer guard is `[ "$SKIP_GPU" != "true" ] && [ -z "${REQUESTED_TEST_PATH}" ]`; the targeted block nested inside it requires `[ -n "${REQUESTED_TEST_PATH}" ]`. Mutually exclusive. Extracting the matrix generator and running it:
+
+```
+### CASE 1: no scope requested   -> 7 jobs (A10G x5, T4, H100)
+### CASE 2: scope requested      -> GPU/AOT jobs emitted: 0
+```
+
+A scoped run produces an **empty matrix and reports green**.
+
+**Merge ordering matters here.** These two bugs currently mask each other: because #1 keeps the scope permanently empty, #2 never triggers, so today's CI is unaffected and merging as-is doesn't break main. But **fixing #1 alone turns every scoped run into a zero-GPU-job false green.** They have to land together.
+
+(CodeRabbit flagged both of these as well; confirmed here by execution rather than reading.)
+
+## Should address before merge
+
+**3. The new test file never runs anywhere.** `tests/experimental/test_experimental_api.py` is ~200 lines of CPU-only tests covering exactly the primitives this PR adds. `pytest.ini`'s `norecursedirs` excludes it from `pytest tests/`, no `task_jit_run_tests_part*.sh` shard lists it, and the only lane that would run it is the dead code in #2. The `norecursedirs` comment is accurate — explicit `pytest tests/experimental/` does still collect — nothing just calls it. Partial mitigation: the `@experimental_backend` marker is covered by the new test in `tests/utils/test_decorators.py`, which is collected.
+
+**4. The validator's selftest isn't in CI.** `scripts/pr_checks/experimental_test_scope.py` is the security boundary for the bot command — its `TARGET_RE` charset is what keeps comment text from reaching a shell as anything but a path. That reasoning is solid (no metacharacters, `..` rejected, root-anchored, and the consumer uses array expansion with globbing off). But `--selftest` isn't wired into pre-commit or any workflow. It passes today; worth keeping it that way.
+
+## Minor
+
+**5. Stale `dropped_experimental_backends` produces a misleading error** — `flashinfer/utils.py`. `suitable_auto_backends` returns early when `common_check` fails, before assigning `wrapper.dropped_experimental_backends`. The error hint then reads a leftover value from a previous call, so a problem-size failure can be reported as "experimental backend(s) [...] were excluded from automatic selection; set `FLASHINFER_ALLOW_EXPERIMENTAL_AUTO_BACKENDS=1`" — sending the user down entirely the wrong path.
+
+**6.** The new `test_decorators.py` test depends on `_WARNED_EXPERIMENTAL_BACKENDS` being empty for its pair but doesn't reset it, unlike the autouse fixture in the experimental test file. Latent flake under `pytest-repeat` / `--count`.
+
+**7.** AOT policy wording conflicts: `flashinfer/experimental/README.md` says prohibited *"Exceptions require maintainer approval"*, while `flashinfer/experimental/CLAUDE.md` and `CONTRIBUTING.md` say never, no exception.
+
+**8.** `norecursedirs = test_helpers experimental` matches a directory *basename*, not a path — harmless today, but there is already a second `experimental` dir (`flashinfer/gdn_kernels/experimental`), so a future `tests/<x>/experimental/` would be silently skipped.
+
+## What's good
+
+The gating design holds up: no circular import (`api_logging` doesn't import `utils`), the experimental filter is correctly applied *before* `heuristic_func` so autotuning inherits it, the import-time `ValueError` backstop for unmarked checkers under `flashinfer.experimental` is a nice touch, and both decorator stacking orders work (`supported_compute_capability` mutates in place rather than wrapping). Nothing in the package is marked yet, so stable behavior really is unchanged — that part of the description checks out.
+
+---
+
+Pushing fixes for all eight to this branch now, as separate commits, with progress comments as they land.
+
+<sub>🤖 Reviewed with [Claude Code](https://claude.com/claude-code)</sub>

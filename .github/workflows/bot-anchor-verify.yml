@@ -1,0 +1,97 @@
+# Sandbox verification of the PROPOSED anchored `Parse command` step.
+# The `Parse command` step below is a byte-for-byte copy of the candidate.
+name: Bot Anchor Verify
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+jobs:
+  # ---- live: one real PR comment in, one reaction out --------------------
+  live:
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@flashinfer-bot')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Parse command
+        id: parse
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          # >>> BEGIN verbatim copy of the candidate step <<<
+          CMD=$(printf '%s\n' "$COMMENT_BODY" | tr -d '\r' \
+            | awk '/^[[:space:]]*(```|~~~)/ { fenced = !fenced; next } !fenced' \
+            | grep -iEm1 '^[[:space:]]*@flashinfer-bot[[:space:]]+(run|rerun|stop)([[:space:]]|$)' \
+            | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+
+          if echo "$CMD" | grep -qiE '^@flashinfer-bot[[:space:]]+rerun[[:space:]]+failed([[:space:]]|$)'; then
+            echo "command=rerun-failed" >> "$GITHUB_OUTPUT"
+          elif echo "$CMD" | grep -qiE '^@flashinfer-bot[[:space:]]+rerun([[:space:]]|$)'; then
+            echo "command=rerun" >> "$GITHUB_OUTPUT"
+          elif echo "$CMD" | grep -qiE '^@flashinfer-bot[[:space:]]+stop([[:space:]]|$)'; then
+            echo "command=stop" >> "$GITHUB_OUTPUT"
+          elif echo "$CMD" | grep -qiE '^@flashinfer-bot[[:space:]]+run([[:space:]]|$)'; then
+            echo "command=run" >> "$GITHUB_OUTPUT"
+          else
+            echo "command=unknown" >> "$GITHUB_OUTPUT"
+          fi
+          # >>> END verbatim copy <<<
+          echo "MATCHED_LINE=[$CMD]"
+
+      - name: Old (unanchored) logic, for contrast
+        id: old
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if echo "$COMMENT_BODY" | grep -qi "@flashinfer-bot rerun failed"; then O=rerun-failed
+          elif echo "$COMMENT_BODY" | grep -qi "@flashinfer-bot rerun"; then O=rerun
+          elif echo "$COMMENT_BODY" | grep -qi "@flashinfer-bot stop"; then O=stop
+          elif echo "$COMMENT_BODY" | grep -qi "@flashinfer-bot run"; then O=run
+          else O=unknown; fi
+          echo "old=$O" >> "$GITHUB_OUTPUT"
+
+      # Mirrors the real handler's gate: fires only when a command was parsed.
+      - name: HANDLER FIRED (react +1)
+        if: steps.parse.outputs.command != 'unknown'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "FIRED old=${{ steps.old.outputs.old }} new=${{ steps.parse.outputs.command }}"
+          gh api -X POST \
+            "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content='+1'
+
+      - name: HANDLER DID NOT FIRE (react eyes)
+        if: steps.parse.outputs.command == 'unknown'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "NOT FIRED old=${{ steps.old.outputs.old }} new=unknown"
+          gh api -X POST \
+            "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content='eyes'
+
+  # ---- portability sweep: all corpus cases under GNU grep/awk ------------
+  corpus:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          grep --version | head -1; awk --version 2>/dev/null | head -1 || awk -W version 2>&1 | head -1
+          python3 - <<'PY'
+          import yaml
+          d = yaml.safe_load(open("botverify/ci-bot-commands.yml.candidate"))
+          s = [x for x in d["jobs"]["handle-command"]["steps"] if x.get("name")=="Parse command"][0]
+          open("botverify/parse_live.sh","w").write('COMMENT_BODY="$(cat)"\nGITHUB_OUTPUT=/dev/stdout\n'+s["run"])
+          PY
+          python3 botverify/run_corpus.py

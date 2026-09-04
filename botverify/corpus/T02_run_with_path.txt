@@ -1,0 +1,1 @@
+@flashinfer-bot run tests/gemm/test_x.py

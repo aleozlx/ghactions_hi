@@ -1,0 +1,62 @@
+**Progress 5 — five more commits, head now `f6712cfd`.** These came out of an adversarial audit of my own earlier commits. Two of them fix defects **I** introduced, and one earlier commit is withdrawn as wrong.
+
+### Withdrawn
+
+`ee961a99` (*"run tests/utils/test_decorators.py in the stable lane"*) — **dropped, its premise was false.** I had claimed that file runs nowhere, based on grepping `scripts/` for pytest invocations naming a directory. That method was wrong: the H100 lane runs `task_run_unit_tests.sh` with no `test_path`, and `unit_test_runner.py`'s `_default_test_paths()` falls back to the whole `tests/` tree. Proof from a real H100 log:
+
+```
+tests/utils/test_decorators.py::test_supported_compute_capability
+```
+
+My *original* review comment was right that the file is collected; the "correction" I posted after it was the error. Sorry for the noise.
+
+### Two defects I introduced, now fixed
+
+**`0be85f78` — the `COMMENT_BODY` binding broke this repo's primary CI trigger.** Making the scope parser live meant the handler `exit 1`d on a rejected scope *before* applying `run-ci`. Replaying the workflow's own sed + validator:
+
+```
+@flashinfer-bot run                                OK (full suite)
+@flashinfer-bot run tests/experimental/test_x.py   OK (scoped)
+@flashinfer-bot run please                         REJECTED -> no label -> no CI
+@flashinfer-bot run thanks!                        REJECTED -> no label -> no CI
+@flashinfer-bot run tests/gemm/test_x.py -k fp8    REJECTED -> no label -> no CI
+@flashinfer-bot run `tests/gemm/test_x.py`         REJECTED -> no label -> no CI
+@flashinfer-bot run tests/experimental/ (thanks!)  REJECTED -> no label -> no CI
+```
+
+Five of seven realistic forms would have run nothing at all. Scoping now degrades instead of gating: an unparseable scope runs the full suite with a note. Never live — `issue_comment` workflows load from the default branch, so this would have activated only *on merge*.
+
+**`8bc4c43c` — the targeted lanes would have died on argument preflight.** Making them reachable exposed a second latent bug: `pr-test.yml` passes the scope as bare positionals, but `unit_test_runner.py` accepts it only as `--test-path` or the `TEST_PATH` env var.
+
+```
+$ python3 scripts/unit_test_runner.py __shell-settings tests/experimental/x.py
+unit_test_runner.py: error: unrecognized arguments: tests/experimental/x.py
+
+$ python3 scripts/unit_test_runner.py __shell-settings --test-path tests/experimental/x.py
+run
+tests/experimental/x.py
+```
+
+The in-repo comment claiming the script *"forwards `$@` into TEST_PATH"* describes intent, not mechanism. Used `--test-path` because `ci/bash.sh` doesn't forward `TEST_PATH` into the container.
+
+### Three hardening commits
+
+- **`5e4dd0bf`** — name the experimental test file, not the directory. The directory form would auto-enrol every future `test_<backend>.py` into the stable A10G shard, contradicting that commit's own comment and bypassing the declared-scope mechanism.
+- **`2e3083fb`** — cap the scope at the runner's `MAX_TEST_PATHS = 16`, counted after de-duplication as the runner counts it. Previously a 17-path request passed preflight, claimed three GPU runners, and died in a sharding internal.
+- **`f6712cfd`** — state on `Test Results Summary` when a green result was scoped. A `ci/test-scope-N` status is sticky per SHA, so a manual `run-ci` re-apply silently reuses it and the required check can go green having run three narrow lanes. Same false-green class as the original bug, from the other side.
+
+### Verification
+
+Default matrix is unchanged from the PR base — extracted both generators and diffed their output:
+
+```
+IDENTICAL — default matrix unchanged from PR base (11 jobs)
+```
+
+`Test Results Summary` exit semantics unaffected by the scope banner (`0/1/0` both with and without a scope). `pre-commit run -a` clean tree-wide. The previous run confirmed `tests/experimental/` executes for real — `14 passed`, matching 13 base tests + 1 new regression test exactly.
+
+### One thing needing a human
+
+I cannot arm auto-merge: `enablePullRequestAutoMerge` is refused for an OAuth app on a PR touching `.github/workflows/` without `workflow` scope. Either `gh auth refresh -h github.com -s workflow`, or the "Enable auto-merge" button, which isn't subject to that restriction.
+
+<sub>🤖 Generated with [Claude Code](https://claude.com/claude-code)</sub>

@@ -1,0 +1,167 @@
+[
+ {
+  "name": "T01_bare_run",
+  "expect": "run",
+  "body": "@flashinfer-bot run"
+ },
+ {
+  "name": "T02_run_with_path",
+  "expect": "run",
+  "body": "@flashinfer-bot run tests/gemm/test_x.py"
+ },
+ {
+  "name": "T03_run_multi_paths",
+  "expect": "run",
+  "body": "@flashinfer-bot run tests/a.py tests/b.py"
+ },
+ {
+  "name": "T04_leading_spaces",
+  "expect": "run",
+  "body": "   @flashinfer-bot run"
+ },
+ {
+  "name": "T05_leading_tab",
+  "expect": "rerun-failed",
+  "body": "\t@flashinfer-bot rerun failed"
+ },
+ {
+  "name": "T06_mixed_case",
+  "expect": "run",
+  "body": "@FlashInfer-Bot RUN"
+ },
+ {
+  "name": "T07_mixed_case_rerun",
+  "expect": "rerun",
+  "body": "@FLASHINFER-BOT ReRun"
+ },
+ {
+  "name": "T08_first_line_multiline",
+  "expect": "run",
+  "body": "@flashinfer-bot run\n\nKicking off CI on the rebased head."
+ },
+ {
+  "name": "T09_later_line_multiline",
+  "expect": "run",
+  "body": "Rebased onto main and fixed the lint failure.\n\n@flashinfer-bot run"
+ },
+ {
+  "name": "T10_middle_line",
+  "expect": "run",
+  "body": "Fixed the lint.\n@flashinfer-bot run tests/utils/\nThanks for the review!"
+ },
+ {
+  "name": "T11_rerun",
+  "expect": "rerun",
+  "body": "@flashinfer-bot rerun"
+ },
+ {
+  "name": "T12_rerun_failed",
+  "expect": "rerun-failed",
+  "body": "@flashinfer-bot rerun failed"
+ },
+ {
+  "name": "T13_stop",
+  "expect": "stop",
+  "body": "@flashinfer-bot stop"
+ },
+ {
+  "name": "T14_run_trailing_prose",
+  "expect": "run",
+  "body": "@flashinfer-bot run please"
+ },
+ {
+  "name": "T15_after_fenced_block",
+  "expect": "run",
+  "body": "Here is the failure:\n\n```\nE   assert 1 == 2\n```\n\n@flashinfer-bot run"
+ },
+ {
+  "name": "T16_crlf",
+  "expect": "run",
+  "body": "Rebased.\r\n@flashinfer-bot run\r\n"
+ },
+ {
+  "name": "T17_trailing_ws",
+  "expect": "run",
+  "body": "@flashinfer-bot run   "
+ },
+ {
+  "name": "T18_rerun_failed_after_list",
+  "expect": "rerun-failed",
+  "body": "Changes:\n- fixed a\n- fixed b\n\n@flashinfer-bot rerun failed"
+ },
+ {
+  "name": "N01_inline_code_prose",
+  "expect": "unknown",
+  "body": "The command is `@flashinfer-bot run` -- type it on its own line."
+ },
+ {
+  "name": "N02_inline_code_line_start",
+  "expect": "unknown",
+  "body": "`@flashinfer-bot run` starts the full suite on the current head."
+ },
+ {
+  "name": "N03_fenced_plain",
+  "expect": "unknown",
+  "body": "Documented commands:\n\n```\n@flashinfer-bot run\n@flashinfer-bot stop\n```\n\nThat is the whole list."
+ },
+ {
+  "name": "N04_fenced_lang",
+  "expect": "unknown",
+  "body": "Example:\n\n```bash\n@flashinfer-bot run tests/x.py\n```"
+ },
+ {
+  "name": "N05_fenced_tilde",
+  "expect": "unknown",
+  "body": "Example:\n\n~~~\n@flashinfer-bot rerun failed\n~~~"
+ },
+ {
+  "name": "N06_blockquote",
+  "expect": "unknown",
+  "body": "> @flashinfer-bot run\n\nDid that actually start anything for you?"
+ },
+ {
+  "name": "N07_blockquote_nested",
+  "expect": "unknown",
+  "body": "> > @flashinfer-bot rerun\n>\n> I tried this yesterday."
+ },
+ {
+  "name": "N08_prose_middle",
+  "expect": "unknown",
+  "body": "I will ask a maintainer to @flashinfer-bot run this once the queue frees up."
+ },
+ {
+  "name": "N09_table_cell",
+  "expect": "unknown",
+  "body": "| Command | Effect |\n|---|---|\n| `@flashinfer-bot run` | full suite |\n| `@flashinfer-bot stop` | cancel |"
+ },
+ {
+  "name": "N10_handle_only_cc",
+  "expect": "unknown",
+  "body": "cc @flashinfer-bot -- could you take a look?"
+ },
+ {
+  "name": "N11_bullet_inline_code",
+  "expect": "unknown",
+  "body": "- **`fix(ci): bind COMMENT_BODY in the @flashinfer-bot run handler`** -- added the binding."
+ },
+ {
+  "name": "N12_heading",
+  "expect": "unknown",
+  "body": "### How `@flashinfer-bot run` works\n\nIt applies the run-ci label."
+ },
+ {
+  "name": "N13_fenced_indented",
+  "expect": "unknown",
+  "body": "1. Comment:\n\n   ```\n   @flashinfer-bot run\n   ```\n\n2. Wait."
+ },
+ {
+  "name": "N14_prose_sentence_start",
+  "expect": "unknown",
+  "body": "Someone should @flashinfer-bot run the suite again; the last one was cancelled."
+ },
+ {
+  "name": "N15_quoted_reply_history",
+  "expect": "unknown",
+  "body": "Thanks!\n\n> On Tue, alex wrote:\n> @flashinfer-bot run tests/gemm/\n> that should cover it"
+ }
+]

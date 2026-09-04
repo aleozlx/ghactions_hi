@@ -1,0 +1,28 @@
+**Progress 6 — head `412efeb7`. A second adversarial audit of the CI-plumbing commits found six confirmed defects; all are fixed. Three issues remain open and are flagged below rather than patched.**
+
+Auto-merge is armed on this PR, so I ran a second audit specifically over the commits nobody had reviewed. It raised 12 findings, 6 confirmed after three-lens refutation.
+
+### Fixed
+
+| Defect | Commit |
+|---|---|
+| The bot's rejection comment embedded `@flashinfer-bot run`, so the bot re-triggered itself, re-applied `run-ci`, and cancelled+restarted the GPU run it had just started | `eec434e6` |
+| `gh pr comment` was unguarded under `bash -e` — a transient 5xx while posting the courtesy note aborted the step **before** the label, i.e. no CI at all | `5dec08fd` |
+| `::selector` scopes died deep in the sharding runner (`RunnerStateError: test path does not exist`) after claiming three GPU runners; `::` is supported nowhere in the runner | `5dec08fd` |
+| The scope was interpolated into the `Check Results` script text rather than bound via `env:` — a script-injection shape none of the six reviewers reported | `f1b0b2d0` |
+| The cap selftest was vacuous: it passed with the constant mutated to `999`, because the cases were written in terms of the constant under test | `8316c5af` |
+| `chunk()` sat outside `main()`'s try/except and the caller read it through `mapfile < <(...)`, which discards the child's status — a too-long target gave a traceback, `rc=0`, full suite substituted, **no note posted** | `412efeb7` |
+
+Two findings were adjudicated **not** defects with evidence: the cap's string-unique vs `resolve()`-unique divergence is safe in the only direction that matters (`resolve()` merges, never splits, so the validator is always at least as strict — checked exhaustively over every form `TARGET_RE` permits), and `::selector` passes preflight fine, so that framing was wrong even though the underlying bug was real.
+
+### Open — please read before merging
+
+**1. A correction to my own commit message.** `f6712cfd` claims the scoped-run banner goes "on the check a merge decision actually reads". **That is wrong.** It writes to `$GITHUB_STEP_SUMMARY`; branch protection and auto-merge read only the check-run *conclusion*. Worse, the signal I dismissed there as "easy to miss on a check list" — job names changing to `Targeted Unittest` — *does* appear in the checks list, so the mitigation is strictly less visible than the thing it called inadequate. Making it real requires changing the check's **name or conclusion**, which is a design call on this feature, not a patch.
+
+**2. A scoped experimental request can degrade to a green that ran none of it.** `pytest.ini`'s `norecursedirs` keeps `tests/experimental/` out of the full suite, and the H100 full lane also excludes it, so the tree is covered only by the single explicit line in `task_jit_run_tests_part5.sh`. Every fallback route — prose, a `-k` selector, a backticked path, an over-cap request, a `::selector` — discards the scope and runs that suite. Benign today (part5 names the only experimental file); the moment a second `tests/experimental/test_<backend>.py` exists, someone scoping to it gets a green required check having run none of it. Note my `::selector` rejection **made this worse for the likeliest input**, converting a loud red into a quiet green. Fixing it means either failing *closed* when the text looks like an intended path, or giving the experimental tree its own lane.
+
+**3. `ci-bot-commands.yml` is executed by zero CI runs.** `issue_comment` workflows load from the default branch, so nothing on this PR ever runs that file — it goes live only at merge. Every fix above in that file rests on hand-execution, not CI. A mistake there silently disables the repo's primary CI trigger for everyone, discoverable only by someone typing a bot command on `main`. Worth one human read, and worth someone running `@flashinfer-bot run tests/experimental/test_experimental_api.py` on the next PR immediately after merge.
+
+Also unfixed by design: this workflow has **no bot-author guard** (`github.event.comment.user.login != '<bot>'`). Removing the trigger phrase from the one comment fixes today's instance; the guard would be the durable fix and covers any comment this workflow learns to post later.
+
+<sub>🤖 Generated with [Claude Code](https://claude.com/claude-code)</sub>

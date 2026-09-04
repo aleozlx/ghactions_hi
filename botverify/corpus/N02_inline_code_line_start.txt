@@ -1,0 +1,1 @@
+`@flashinfer-bot run` starts the full suite on the current head.

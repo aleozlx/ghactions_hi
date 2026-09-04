@@ -1,0 +1,25 @@
+**Progress 1/4 — the two blockers are fixed** (`aa43b391`, `9e2de79f`)
+
+- **`fix(ci): bind COMMENT_BODY in the @flashinfer-bot run handler`** — added the binding to the handler step's `env:`. Kept as an environment variable rather than an interpolated `${{ }}` value, so the comment body reaches the script as data.
+- **`fix(ci): emit the targeted lanes instead of an empty matrix`** — the two branches are now alternatives of one condition (`if [ -z ... ] ... elif [ "$SKIP_GPU" != "true" ]`) rather than one nested inside the other.
+
+Verified by extracting the matrix generator from the patched workflow and running it directly:
+
+```
+### CASE 1: no scope requested
+JIT Unittest 1..5 (A10G), JIT Unittest (T4), JIT Unittest (H100)      -> 7 jobs, unchanged
+
+### CASE 2: scope requested
+Targeted Unittest (A10G)  test_path=tests/experimental/test_experimental_api.py
+Targeted Unittest (T4)    test_path=tests/experimental/test_experimental_api.py
+Targeted Unittest (H100)  test_path=tests/experimental/test_experimental_api.py
+
+### CASE 3: SKIP_GPU=true + scope requested
+jobs: 0                                                               -> still suppressed
+```
+
+Both workflows re-checked as valid YAML, and the matrix block passes `bash -n`.
+
+Next up: #3 (wire `tests/experimental/` into a lane) and #4 (validator selftest in pre-commit).
+
+<sub>🤖 Generated with [Claude Code](https://claude.com/claude-code)</sub>

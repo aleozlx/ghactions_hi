@@ -1,0 +1,1 @@
+- **`fix(ci): bind COMMENT_BODY in the @flashinfer-bot run handler`** -- added the binding.

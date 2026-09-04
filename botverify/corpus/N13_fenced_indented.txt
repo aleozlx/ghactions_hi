@@ -1,0 +1,7 @@
+1. Comment:
+
+   ```
+   @flashinfer-bot run
+   ```
+
+2. Wait.

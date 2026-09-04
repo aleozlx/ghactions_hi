@@ -1,0 +1,4 @@
+| Command | Effect |
+|---|---|
+| `@flashinfer-bot run` | full suite |
+| `@flashinfer-bot stop` | cancel |
