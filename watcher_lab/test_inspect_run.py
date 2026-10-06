@@ -1,5 +1,5 @@
 import unittest
-from inspect_run import assess
+from inspect_run import assess, observation_changed
 
 
 class EvidenceTest(unittest.TestCase):
@@ -22,3 +22,9 @@ class EvidenceTest(unittest.TestCase):
         self.assertTrue(result['jobRequirementsSatisfied'])
         self.assertFalse(result['mergeAuthorized'])
         self.assertTrue(result['testCoverage'].startswith('unknown'))
+
+    def test_rerun_invalidates_collected_jobs(self):
+        before = {'id': 1, 'head_sha': 'a', 'run_attempt': 1, 'status': 'completed', 'conclusion': 'success'}
+        self.assertFalse(observation_changed(before, dict(before)))
+        self.assertTrue(observation_changed(before, {**before, 'run_attempt': 2}))
+        self.assertTrue(observation_changed(before, {**before, 'status': 'in_progress', 'conclusion': None}))

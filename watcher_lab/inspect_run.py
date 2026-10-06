@@ -25,6 +25,12 @@ def assess(run, jobs, expected_head, required_jobs):
             'mergeAuthorized': False}
 
 
+def observation_changed(before, after):
+    """Never combine jobs from a moving run attempt or lifecycle state."""
+    return any(before.get(key) != after.get(key) for key in
+               ('id', 'head_sha', 'run_attempt', 'status', 'conclusion', 'updated_at'))
+
+
 def api(endpoint):
     return json.loads(subprocess.check_output(['gh', 'api', '--method', 'GET', endpoint], text=True))
 
@@ -48,10 +54,14 @@ def main():
             break
         page += 1
     # Recheck after collecting the run so a moving head cannot silently pass.
+    run_after = api(f'{root}/actions/runs/{args.run}')
     latest = api(f'{root}/pulls/{args.pr}')
     result = assess(run, jobs, latest['head']['sha'], args.required_job)
     if latest['head']['sha'] != pr['head']['sha']:
         result['blockers'].append('PR head changed during inspection')
+        result['jobRequirementsSatisfied'] = False
+    if observation_changed(run, run_after):
+        result['blockers'].append('Run changed during job inspection; recollect the observation')
         result['jobRequirementsSatisfied'] = False
     result.update(repository=args.repo, pr=args.pr, run=args.run,
                   head=latest['head']['sha'], prState=latest['state'])

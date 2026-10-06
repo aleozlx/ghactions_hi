@@ -19,7 +19,8 @@ The read-only inspector checks a requested run against the PR's latest head and
 explicit required job names, paginates jobs, and rechecks the head after inspection.
 It never authorizes CI or merging. Passing jobs do not prove that the intended tests
 executed; test collection, skips, architecture and scope require separate evidence.
-Run-attempt consistency and full coverage receipts are future work.
+The inspector also rereads the run after job pagination; changed attempts or
+lifecycle metadata invalidate that observation. Full coverage receipts remain future work.
 
 ```sh
 python3 -m unittest discover -s watcher_lab -v
