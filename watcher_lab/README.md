@@ -60,3 +60,9 @@ changes, conflict, unknown CI and draft. The platform consumes the same fixture
 shape in its ETA regression tests. This public copy is a reviewable experiment
 specification, not a standalone projection implementation or a live CI experiment.
 None of these cases supplies production duration samples or proves release inclusion.
+
+`test_release_ancestry.py` performs a real local Git lifecycle replay in a disposable
+repository: baseline release → feature merge → containing release → cherry-picked
+backport. It confirms that merge alone is not release inclusion, and patch presence
+on a backport does not establish ancestry of the original merge commit. The replay
+makes no network requests and is not a live GitHub Actions/release-publication test.
