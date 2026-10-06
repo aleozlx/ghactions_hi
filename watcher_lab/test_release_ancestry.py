@@ -12,6 +12,8 @@ class ReleaseAncestryTests(unittest.TestCase):
             def git(*args):
                 return subprocess.check_output(['git', '-C', str(root), *args], text=True, stderr=subprocess.DEVNULL).strip()
             git('init', '-b', 'main')
+            git('config', 'commit.gpgsign', 'false')
+            git('config', 'tag.gpgsign', 'false')
             git('config', 'user.name', 'Synthetic experiment')
             git('config', 'user.email', 'synthetic@example.invalid')
             (root/'base').write_text('base\n')
