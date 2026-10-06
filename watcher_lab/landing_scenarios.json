@@ -1,0 +1,14 @@
+{
+  "kind": "synthetic lifecycle regression cases; not timing calibration",
+  "cases": [
+    {"name":"ready","pr":{},"screen":{},"finite":true,"stages":["validation_allowance","merge_wait"]},
+    {"name":"real_ci_failure","pr":{"ci":"FAILURE"},"screen":{},"finite":true,"stages":["fix_iteration","ci_cycle","validation_allowance","merge_wait"]},
+    {"name":"authorization_only","pr":{"ci":"FAILURE"},"screen":{},"observation":"authorization_required","finite":true,"stages":["ci_cycle","validation_allowance","merge_wait"]},
+    {"name":"new_head_stale_screen","pr":{"headSha":"new"},"screen":{"status":"stale"},"finite":false},
+    {"name":"security_hold","pr":{},"screen":{"ciVerdict":"hold"},"finite":false},
+    {"name":"review_changes","pr":{"reviewDecision":"CHANGES_REQUESTED"},"screen":{},"finite":false},
+    {"name":"merge_conflict","pr":{"mergeable":"CONFLICTING"},"screen":{},"finite":false},
+    {"name":"unknown_ci","pr":{"ci":"UNKNOWN"},"screen":{},"finite":false},
+    {"name":"draft","pr":{"isDraft":true},"screen":{},"finite":false}
+  ]
+}
