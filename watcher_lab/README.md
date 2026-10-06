@@ -51,3 +51,12 @@ Observed on 2026-10-05 at PR #8 head
 5. An isolated synthetic fix/validation/merge loop with verified outcome attribution.
 
 These are lab scenarios, not a claim that production implements every gate.
+
+## Landing projection transition corpus
+
+`landing_scenarios.json` contains nine synthetic cases: ready, actual CI failure,
+authorization-only failure, changed head/stale screening, safety hold, requested
+changes, conflict, unknown CI and draft. The platform consumes the same fixture
+shape in its ETA regression tests. This public copy is a reviewable experiment
+specification, not a standalone projection implementation or a live CI experiment.
+None of these cases supplies production duration samples or proves release inclusion.
